@@ -29,11 +29,25 @@ const useInitialCode = () => {
   );
 
   const sharedCode = useMemo(() => {
-    const shared = getQueryParam(SNIPPET_SHARE_QUERY_ID);
+    // Try Storybook API first
+    let shared = getQueryParam(SNIPPET_SHARE_QUERY_ID);
+
+    // Fallback: read directly from URL if Storybook API doesn't work
+    if (!shared && typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      shared = urlParams.get(SNIPPET_SHARE_QUERY_ID);
+    }
+
     if (!shared) {
       return null;
     }
-    return decodeAndDecompress(shared);
+
+    try {
+      return decodeAndDecompress(shared);
+    } catch (error) {
+      console.error("Failed to decode shared code:", error);
+      return null;
+    }
   }, [getQueryParam]);
 
   const persistedCode = useMemo(() => {

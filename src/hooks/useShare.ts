@@ -6,7 +6,6 @@ import {
   DEFAULT_ADDON_PARAMETERS,
   SNIPPET_SHARE_QUERY_ID,
 } from "@/consts";
-import usePlaygroundState from "./usePlaygroundState";
 import { useParameter } from "storybook/manager-api";
 
 interface UseShareReturnType {
@@ -16,12 +15,11 @@ interface UseShareReturnType {
 }
 
 const useShare = (code: Code): UseShareReturnType => {
-  const { playgroundStoryBaseUrl } = usePlaygroundState();
   const { share: enableShare } = useParameter<PlaygroundParameters>(
     ADDON_ID_FOR_PARAMETERS,
     DEFAULT_ADDON_PARAMETERS
   );
-  const [isShareCopied, setShareCopied] = useState(false);
+  const [isCopied, setCopied] = useState(false);
 
   const shouldAllowShare = useMemo(
     () => Boolean(code?.jsx || code?.css) && enableShare,
@@ -33,14 +31,22 @@ const useShare = (code: Code): UseShareReturnType => {
       return;
     }
     const encoded = compressAndEncode(code);
-    const url = new URL(await playgroundStoryBaseUrl);
-    url.searchParams.append(SNIPPET_SHARE_QUERY_ID, encoded);
-    navigator.clipboard.writeText(url.href);
-    setShareCopied(true);
-    setTimeout(() => setShareCopied(false), 2000);
-  }, [code, playgroundStoryBaseUrl, shouldAllowShare]);
 
-  return { onShare, isShareCopied, shouldAllowShare };
+    // Use the current window location to preserve the exact story path format
+    // This ensures we use the actual current story path (e.g., /story/playground--playground)
+    // rather than generating a new one that might have the wrong format
+    const currentUrl = new URL(window.location.href);
+
+    // Clear any existing snippet parameter and add the new one
+    currentUrl.searchParams.delete(SNIPPET_SHARE_QUERY_ID);
+    currentUrl.searchParams.set(SNIPPET_SHARE_QUERY_ID, encoded);
+
+    navigator.clipboard.writeText(currentUrl.href);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [code, shouldAllowShare]);
+
+  return { onShare, isShareCopied: isCopied, shouldAllowShare };
 };
 
 export default useShare;
