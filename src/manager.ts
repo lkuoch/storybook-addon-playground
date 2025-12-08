@@ -39,5 +39,8 @@ addons.register(ADDON_ID, ({ getCurrentParameter, on, emit, resolveStory }) => {
     type: Addon_TypesEnum.PANEL,
     title: PanelTitle,
     render: Panel,
+    disabled: (params) => {
+      return !String(params?.fileName).endsWith("Playground.stories.tsx");
+    },
   });
 });

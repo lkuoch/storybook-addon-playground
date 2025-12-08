@@ -8,12 +8,22 @@ const exportEntry = "src/index.ts";
 const managerEntry = "src/manager.ts";
 
 export default {
-  external: [/node_modules/],
+  external: (id) => {
+    // Externalize all node_modules, but be explicit about prettier
+    if (id.includes('node_modules')) return true;
+    // Explicitly externalize prettier and its parsers
+    if (id === 'prettier' || id.startsWith('prettier/')) return true;
+    return false;
+  },
   plugins: [
     resolve(),
     commonjs(),
     json(),
-    typescript(),
+    typescript({
+      tsconfigOverride: {
+        exclude: ["src/**/__tests__/**", "src/**/*.test.ts", "src/**/*.test.tsx"]
+      }
+    }),
     postcss({
       modules: true,
       inject(cssVariableName) {

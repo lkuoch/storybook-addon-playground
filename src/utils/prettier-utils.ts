@@ -1,7 +1,7 @@
-import { format, Options } from "prettier";
-import parserHtml from "prettier/parser-html";
-import parserTypeScript from "prettier/parser-typescript";
-import parserPostCss from "prettier/parser-postcss";
+import { format, type Options } from "prettier";
+import parserHtml from "prettier/parser-html.js";
+import parserTypeScript from "prettier/parser-typescript.js";
+import parserPostCss from "prettier/parser-postcss.js";
 
 const jsxOptions: Options = {
   parser: "typescript",

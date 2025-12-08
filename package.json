@@ -56,7 +56,7 @@
     "start": "yarn build && yarn storybook"
   },
   "dependencies": {
-    "@storybook/addon-links": "^9.0.0",
+    "@storybook/addon-links": "^10.1.4",
     "@uiw/codemirror-extensions-langs": "^4.23.0",
     "@uiw/codemirror-theme-github": "^4.23.0",
     "@uiw/react-codemirror": "^4.23.0",
@@ -72,8 +72,8 @@
     "@rollup/plugin-node-resolve": "^15.2.3",
     "@semantic-release/changelog": "^5.0.1",
     "@semantic-release/git": "^9.0.1",
-    "@storybook/addon-docs": "^9.0.0",
-    "@storybook/react-vite": "^9.0.0",
+    "@storybook/addon-docs": "^10.1.4",
+    "@storybook/react-vite": "^10.1.4",
     "@svgr/cli": "^8.1.0",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.4.6",
@@ -101,12 +101,13 @@
     "rollup-plugin-postcss": "^4.0.2",
     "rollup-plugin-typescript2": "^0.36.0",
     "sass": "^1.77.8",
-    "storybook": "^9.0.0",
+    "storybook": "^10.1.4",
     "typescript": "^5.5.3",
     "vite": "^5.3.4",
     "vite-plugin-externalize-deps": "^0.8.0",
     "vite-tsconfig-paths": "^4.3.2",
-    "vitest": "^2.0.3"
+    "vitest": "^2.0.3",
+    "eslint-plugin-storybook": "10.1.4"
   },
   "peerDependencies": {
     "react": ">=18.0.0",

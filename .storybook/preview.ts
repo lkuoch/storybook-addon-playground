@@ -8,7 +8,7 @@ import { generateAutocompletion } from "../src";
 const preview: Preview = {
   parameters: {
     playground: {
-      storyId: "playground",
+      storyId: "playground--playground",
       components: { ...VibeComponents, ...VibeNext, VibeIcons },
       autocompletions: generateAutocompletion(reactDocgenOutput),
       editorTheme: "light",
