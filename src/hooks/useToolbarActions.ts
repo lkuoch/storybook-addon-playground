@@ -1,35 +1,28 @@
 import { useCallback } from "react";
-import { formatCss, formatJsx } from "@/utils";
-import { Code, Tab } from "@/types";
+import { formatJsx } from "@/utils";
+import { Code } from "@/types";
 
 interface UseToolbarActionsReturnType {
   onReset: () => void;
   onFormatCode: () => void;
 }
 
-const formatFunctions = {
-  jsx: formatJsx,
-  css: formatCss,
-};
-
 const useToolbarActions = (
   code: Code,
   updateCode: (newCode: string) => void,
-  resetCode: () => void,
-  currentTab: Tab
+  resetCode: () => void
 ): UseToolbarActionsReturnType => {
   const onFormatCode = useCallback(async () => {
     try {
-      const formatter = formatFunctions[currentTab];
-      const formatted = await formatter?.(code[currentTab]);
-      if (formatted === code[currentTab]) {
+      const formatted = await formatJsx(code.jsx);
+      if (formatted === code.jsx) {
         return;
       }
       updateCode(formatted);
     } catch (error) {
       console.error(error.message);
     }
-  }, [code, currentTab, updateCode]);
+  }, [code, updateCode]);
 
   const onReset = useCallback(() => {
     resetCode();

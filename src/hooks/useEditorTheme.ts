@@ -1,16 +1,13 @@
 import { useParameter, useStorybookState } from "storybook/manager-api";
 import { EditorTheme, PlaygroundParameters } from "@/types";
 import { ADDON_ID_FOR_PARAMETERS, DEFAULT_ADDON_PARAMETERS } from "@/consts";
-import { githubDark, githubLight } from "@uiw/codemirror-theme-github";
-
-type DefaultThemes = typeof githubDark | typeof githubDark;
 
 function isBasicTheme(theme: EditorTheme): theme is "light" | "dark" {
   return typeof theme === "string" && ["light", "dark"].includes(theme);
 }
 
-function getTheme(basicThemeName: string): DefaultThemes {
-  return basicThemeName === "dark" ? githubDark : githubLight;
+function getMonacoTheme(basicThemeName: string): string {
+  return basicThemeName === "dark" ? "vs-dark" : "vs";
 }
 
 const useEditorTheme = (): EditorTheme => {
@@ -20,9 +17,10 @@ const useEditorTheme = (): EditorTheme => {
     DEFAULT_ADDON_PARAMETERS
   );
   if (isBasicTheme(addonTheme)) {
-    return getTheme(addonTheme);
+    return getMonacoTheme(addonTheme);
   }
-  return addonTheme || getTheme(storybookTheme.base);
+  // If custom theme string provided, use it; otherwise use storybook theme
+  return addonTheme || getMonacoTheme(storybookTheme.base);
 };
 
 export default useEditorTheme;

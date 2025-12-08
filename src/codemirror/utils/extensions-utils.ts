@@ -1,6 +1,6 @@
-import { EditorState } from "@uiw/react-codemirror";
+import type { editor } from "monaco-editor";
 
-interface EditorStateInfo {
+export interface EditorStateInfo {
   cursorPos: number;
   fullLineText: string;
   lineTextUpToCursor: string;
@@ -11,15 +11,34 @@ export function parseTagFromLineText(lineText: string): string {
   return lineText.match(/<([a-zA-Z0-9]+)/)?.[1];
 }
 
-export function getEditorStateInfo(state: EditorState): EditorStateInfo {
-  const cursorPos = state.selection.main.head;
-  const line = state.doc.lineAt(cursorPos);
-  const lineTextUpToCursor = line.text.substring(0, cursorPos - line.from);
-  const lineTextAfterCursor = line.text.substring(cursorPos - line.from);
+export function getEditorStateInfo(
+  editorInstance: editor.IStandaloneCodeEditor
+): EditorStateInfo {
+  const model = editorInstance.getModel();
+  const position = editorInstance.getPosition();
+  
+  if (!model || !position) {
+    return {
+      cursorPos: 0,
+      fullLineText: "",
+      lineTextUpToCursor: "",
+      lineTextAfterCursor: "",
+    };
+  }
+
+  const lineNumber = position.lineNumber;
+  const column = position.column;
+  const line = model.getLineContent(lineNumber);
+  
+  // Convert line/column to offset
+  const cursorPos = model.getOffsetAt(position);
+  
+  const lineTextUpToCursor = line.substring(0, column - 1);
+  const lineTextAfterCursor = line.substring(column - 1);
 
   return {
     cursorPos,
-    fullLineText: line.text,
+    fullLineText: line,
     lineTextUpToCursor,
     lineTextAfterCursor,
   };

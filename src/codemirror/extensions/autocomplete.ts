@@ -1,10 +1,5 @@
-import {
-  startCompletion,
-  CompletionContext,
-  CompletionResult,
-  Completion,
-  autocompletion,
-} from "@codemirror/autocomplete";
+import type { editor, IDisposable } from "monaco-editor";
+import { languages } from "monaco-editor";
 import { getEditorStateInfo } from "../utils/extensions-utils";
 import { AutocompletionsMetadata } from "@/types";
 import {
@@ -16,30 +11,21 @@ import {
 
 function generateComponentNameCompletions(
   partialName: string,
-  options: AutocompletionsMetadata
-): Completion[] {
+  options: AutocompletionsMetadata,
+  range: languages.CompletionItem["range"]
+): languages.CompletionItem[] {
   return Object.keys(options)
     .filter((componentName) =>
       componentName.toLowerCase().startsWith(partialName.toLowerCase())
     )
     .map((componentName) => ({
       label: componentName,
-      section: "Components",
-      type: "keyword",
-      apply: (view, completion, from, to) => {
-        // insert the component name and a space
-        const insertText = `${completion.label} `;
-        view.dispatch({
-          changes: { from, to, insert: insertText },
-          // move the cursor to the end of the new inserted text
-          selection: { anchor: from + insertText.length },
-        });
-
-        // we need to trigger autocompletion to immediately show prop completions after inserting the component name
-        requestAnimationFrame(() => {
-          startCompletion(view);
-        });
-      },
+      kind: languages.CompletionItemKind.Keyword,
+      insertText: `${componentName} `,
+      insertTextRules: languages.CompletionItemInsertTextRule.InsertAsSnippet,
+      range,
+      sortText: `0${componentName}`, // Sort components first
+      detail: "Component",
     }));
 }
 
@@ -47,8 +33,9 @@ function generatePropCompletions(
   componentName: keyof AutocompletionsMetadata,
   options: AutocompletionsMetadata,
   partialPropName: string,
-  usedProps: Set<string>
-): Completion[] {
+  usedProps: Set<string>,
+  range: languages.CompletionItem["range"]
+): languages.CompletionItem[] {
   const componentProps = options[componentName];
   if (!componentProps?.length) {
     return [];
@@ -62,94 +49,114 @@ function generatePropCompletions(
     .filter(
       ({ name }) => !usedProps.has(name) && name.startsWith(partialPropName)
     )
-    .map(({ name, type, required, defaultValue, description }) => ({
-      label: name,
-      boost: required ? 1 : 0, // move required props to the top of the list
-      detail: Array.isArray(type) ? type.join(" | ") : type,
-      // show description and default value in the completion tooltip
-      info:
+    .map(({ name, type, required, defaultValue, description }) => {
+      const typeStr = Array.isArray(type) ? type.join(" | ") : type;
+      const insertText =
+        type === "string" ? `${name}="$1"` : `${name}={$1}`;
+      const documentation =
         (description ? `${description}` : "") +
         (description && defaultValue ? " | " : "") +
-        (defaultValue ? ` Defaults to: ${defaultValue}` : ""),
-      section: `${componentName}'s props`, // group props by component name
-      type: required ? "required" : "property", // property won't have * next to it
-      apply: (view, _completion, from, to) => {
-        const textToInsert = type === "string" ? `${name}=""` : `${name}={}`;
-        const replaceFrom = from - partialPropName.length;
+        (defaultValue ? ` Defaults to: ${defaultValue}` : "");
 
-        const transaction = view.state.update({
-          changes: {
-            from: replaceFrom,
-            to,
-            insert: textToInsert,
-          },
-          selection: { anchor: replaceFrom + textToInsert.length - 1 },
-        });
-        view.dispatch(transaction); // Dispatch the transaction to apply changes and set cursor
-      },
-    }));
+      return {
+        label: name,
+        kind: required
+          ? languages.CompletionItemKind.Property
+          : languages.CompletionItemKind.Property,
+        detail: typeStr,
+        documentation: documentation || undefined,
+        insertText,
+        insertTextRules: languages.CompletionItemInsertTextRule.InsertAsSnippet,
+        range,
+        sortText: required ? `0${name}` : `1${name}`, // Required props first
+        tags: required ? [languages.CompletionItemTag.Deprecated] : undefined, // Use deprecated tag to mark required (will show differently)
+      };
+    });
 }
 
-function playgroundAutocompletion(
-  context: CompletionContext,
+// Store editor instance globally for autocomplete access
+let currentEditorInstance: editor.IStandaloneCodeEditor | null = null;
+
+export function setCurrentEditorInstance(
+  editorInstance: editor.IStandaloneCodeEditor | null
+): void {
+  currentEditorInstance = editorInstance;
+}
+
+export function registerPlaygroundAutocompletion(
+  monaco: typeof import("monaco-editor"),
   options: AutocompletionsMetadata
-): CompletionResult | null {
-  const { state } = context;
-  const { cursorPos, fullLineText, lineTextUpToCursor } =
-    getEditorStateInfo(state);
+): IDisposable {
+  return monaco.languages.registerCompletionItemProvider("typescript", {
+    provideCompletionItems: (model, position) => {
+      // Get line content and cursor position from model
+      const lineNumber = position.lineNumber;
+      const column = position.column;
+      const lineContent = model.getLineContent(lineNumber);
+      const lineTextUpToCursor = lineContent.substring(0, column - 1);
+      const fullLineText = lineContent;
+      const cursorPos = model.getOffsetAt(position);
 
-  let completions: Completion[] = [];
-  let from = cursorPos;
+      const word = model.getWordUntilPosition(position);
+      const range = {
+        startLineNumber: position.lineNumber,
+        endLineNumber: position.lineNumber,
+        startColumn: word.startColumn,
+        endColumn: word.endColumn,
+      };
 
-  if (isInsideAttribute(fullLineText, cursorPos)) {
-    // never show suggestions from any kind inside attributes
-    return null;
-  }
+      let suggestions: languages.CompletionItem[] = [];
 
-  const newTagName = getNewTagContext(lineTextUpToCursor);
-  if (newTagName !== null) {
-    // if the cursor is in a new tag context, generate component name completions
-    completions = generateComponentNameCompletions(newTagName, options);
-    if (newTagName !== "") {
-      from -= newTagName.length;
-    }
-  } else {
-    // otherwise, generate prop completions
-    if (!shouldTriggerPropSuggestions(fullLineText, cursorPos)) {
-      return null;
-    }
-    const match = lineTextUpToCursor.match(/<(\w+)\s[\s\S]*?(\w*)$/);
-    if (!match) {
-      return null;
-    }
-    const usedProps = extractAlreadyUsedProps(fullLineText, cursorPos);
-    const [, componentName, partialPropName] = match;
-    completions = generatePropCompletions(
-      componentName,
-      options,
-      partialPropName,
-      usedProps
-    );
-  }
+      if (isInsideAttribute(fullLineText, cursorPos)) {
+        // never show suggestions from any kind inside attributes
+        return { suggestions: [] };
+      }
 
-  if (completions.length === 0) {
-    return null;
-  }
+      const newTagName = getNewTagContext(lineTextUpToCursor);
+      if (newTagName !== null) {
+        // if the cursor is in a new tag context, generate component name completions
+        const adjustedRange = {
+          ...range,
+          startColumn: Math.max(1, position.column - newTagName.length),
+        };
+        suggestions = generateComponentNameCompletions(
+          newTagName,
+          options,
+          adjustedRange
+        );
+      } else {
+        // otherwise, generate prop completions
+        if (!shouldTriggerPropSuggestions(fullLineText, cursorPos)) {
+          return { suggestions: [] };
+        }
+        const match = lineTextUpToCursor.match(/<(\w+)\s[\s\S]*?(\w*)$/);
+        if (!match) {
+          return { suggestions: [] };
+        }
+        const usedProps = extractAlreadyUsedProps(fullLineText, cursorPos);
+        const [, componentName, partialPropName] = match;
+        const adjustedRange = {
+          ...range,
+          startColumn: Math.max(1, position.column - partialPropName.length),
+        };
+        suggestions = generatePropCompletions(
+          componentName,
+          options,
+          partialPropName,
+          usedProps,
+          adjustedRange
+        );
+      }
 
-  return {
-    from,
-    to: cursorPos,
-    options: completions,
-    validFor: /^[\w-]*$/,
-  };
+      return { suggestions };
+    },
+    triggerCharacters: ["<", " "],
+  });
 }
 
-export default (options: AutocompletionsMetadata) =>
-  autocompletion({
-    override: [
-      (context: CompletionContext) =>
-        playgroundAutocompletion(context, options),
-    ],
-    tooltipClass: () => "playground-autocompletion-dialog",
-    optionClass: () => "playground-autocompletion-option",
-  });
+// Legacy export for backward compatibility
+export default function autocomplete(options: AutocompletionsMetadata): null {
+  // This is a no-op now - autocomplete is registered via registerPlaygroundAutocompletion
+  // This function exists to maintain the same API structure
+  return null;
+}

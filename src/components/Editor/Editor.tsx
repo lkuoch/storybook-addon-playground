@@ -1,11 +1,7 @@
-import React, { forwardRef, lazy } from "react";
-import {
-  Extension,
-  ReactCodeMirrorRef,
-  BasicSetupOptions,
-} from "@uiw/react-codemirror";
+import React, { forwardRef, lazy, useImperativeHandle, useRef } from "react";
 import { Loader } from "storybook/internal/components";
-const CodeMirror = lazy(() => import("@uiw/react-codemirror"));
+import EditorComponent from "@monaco-editor/react";
+import type { editor } from "monaco-editor";
 import "./Editor.module.css";
 import { EditorInitialState, EditorTheme } from "@/types";
 
@@ -16,16 +12,19 @@ interface EditorProps {
   loading?: boolean;
   theme: EditorTheme;
   style?: React.CSSProperties;
-  extensions?: Extension[];
-  setup?: BasicSetupOptions;
+  language?: string;
+  options?: editor.IStandaloneEditorConstructionOptions;
+  onMount?: (editor: editor.IStandaloneCodeEditor) => void;
   initialState?: EditorInitialState;
 }
 
-type EditorComponent = React.ForwardRefExoticComponent<
-  EditorProps & React.RefAttributes<ReactCodeMirrorRef>
+export type MonacoEditorRef = editor.IStandaloneCodeEditor | null;
+
+type EditorComponentType = React.ForwardRefExoticComponent<
+  EditorProps & React.RefAttributes<MonacoEditorRef>
 >;
 
-const Editor: EditorComponent = forwardRef(
+const Editor: EditorComponentType = forwardRef(
   (
     {
       code,
@@ -34,27 +33,55 @@ const Editor: EditorComponent = forwardRef(
       loading,
       theme,
       style,
-      extensions,
-      setup,
+      language = "typescript",
+      options,
+      onMount,
       initialState,
     },
     ref
   ) => {
+    const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
+
+    useImperativeHandle(ref, () => editorRef.current, []);
+
+    const handleEditorDidMount = (
+      editor: editor.IStandaloneCodeEditor,
+      monaco: typeof import("monaco-editor")
+    ) => {
+      editorRef.current = editor;
+      
+      // Restore view state if provided
+      if (initialState?.json?.viewState) {
+        editor.restoreViewState(initialState.json.viewState);
+      }
+
+      if (onMount) {
+        onMount(editor);
+      }
+    };
+
+    const editorOptions: editor.IStandaloneEditorConstructionOptions = {
+      fontSize: 13,
+      minimap: { enabled: false },
+      scrollBeyondLastLine: false,
+      wordWrap: "on",
+      readOnly: false, // Explicitly ensure editor is not read-only
+      ...options,
+    };
+
     return (
       <>
         {loading ? (
           <Loader />
         ) : (
-          <CodeMirror
-            ref={ref}
-            style={style}
-            theme={theme}
+          <EditorComponent
             value={code}
-            extensions={extensions}
-            onChange={onChange}
-            placeholder={placeholder}
-            basicSetup={setup}
-            initialState={initialState?.json && initialState}
+            language={language}
+            theme={typeof theme === "string" ? theme : "vs"}
+            onChange={(value) => onChange(value || "")}
+            onMount={handleEditorDidMount}
+            options={editorOptions}
+            loading={loading ? <Loader /> : undefined}
           />
         )}
       </>

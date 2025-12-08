@@ -14,7 +14,7 @@ const usePlaygroundArgs = (): PlaygroundArgs => {
     PANEL_ID,
     DEFAULT_ADDON_STATE
   );
-  const { code, selectedTab } = state;
+  const { code } = state;
   const { introCode } = useParameter<PlaygroundParameters>(
     ADDON_ID_FOR_PARAMETERS,
     DEFAULT_ADDON_PARAMETERS
@@ -22,19 +22,19 @@ const usePlaygroundArgs = (): PlaygroundArgs => {
 
   const updateCode = useCallback(
     (newCode: string) => {
-      const updatedCode = { ...code, [selectedTab]: newCode };
+      const updatedCode = { ...code, jsx: newCode };
       setState((state) => ({ ...state, code: updatedCode }));
     },
-    [code, selectedTab, setState]
+    [code, setState]
   );
 
   const resetCode = useCallback(() => {
     clearStoredCode();
 
-    const resetValue = introCode?.[selectedTab] ?? "";
-    const updatedCode = { ...code, [selectedTab]: resetValue };
+    const resetValue = introCode?.jsx ?? "";
+    const updatedCode = { ...code, jsx: resetValue };
     setState((state) => ({ ...state, code: updatedCode }));
-  }, [code, selectedTab, setState, introCode]);
+  }, [code, setState, introCode]);
 
   return { updateCode, resetCode };
 };

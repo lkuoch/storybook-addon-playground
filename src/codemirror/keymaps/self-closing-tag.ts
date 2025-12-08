@@ -1,13 +1,12 @@
-import { EditorSelection, EditorView } from "@uiw/react-codemirror";
+import type { editor } from "monaco-editor";
 import {
   getEditorStateInfo,
   parseTagFromLineText,
 } from "../utils/extensions-utils";
 
-function insertSelfClosingTagCommand(view: EditorView): boolean {
-  const { state, dispatch } = view;
-  const { cursorPos, lineTextUpToCursor, lineTextAfterCursor } =
-    getEditorStateInfo(state);
+function insertSelfClosingTagCommand(editorInstance: editor.IStandaloneCodeEditor): boolean {
+  const { lineTextUpToCursor, lineTextAfterCursor } =
+    getEditorStateInfo(editorInstance);
 
   const tagName = parseTagFromLineText(lineTextUpToCursor);
 
@@ -23,16 +22,35 @@ function insertSelfClosingTagCommand(view: EditorView): boolean {
     return false;
   }
 
-  // +2 to move in after the inserted self-closing bracket
-  const newCursorPos = EditorSelection.cursor(cursorPos + 2);
+  const position = editorInstance.getPosition();
+  if (!position) {
+    return false;
+  }
 
-  // insert self-closing tag syntax ('/>') and adjust the cursor position
-  dispatch(
-    state.update({
-      changes: { from: cursorPos, insert: "/>" },
-      selection: newCursorPos,
-    })
-  );
+  const model = editorInstance.getModel();
+  if (!model) {
+    return false;
+  }
+
+  // Insert self-closing tag syntax
+  const edit = {
+    range: {
+      startLineNumber: position.lineNumber,
+      startColumn: position.column,
+      endLineNumber: position.lineNumber,
+      endColumn: position.column,
+    },
+    text: "/>",
+  };
+
+  editorInstance.executeEdits("self-close-tag", [edit]);
+
+  // Move cursor to position after the inserted text
+  const newPosition = {
+    lineNumber: position.lineNumber,
+    column: position.column + 2,
+  };
+  editorInstance.setPosition(newPosition);
 
   return true;
 }

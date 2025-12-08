@@ -1,13 +1,14 @@
-import { EditorSelection, EditorView } from "@uiw/react-codemirror";
+import type { editor } from "monaco-editor";
 import {
   getEditorStateInfo,
   parseTagFromLineText,
 } from "../utils/extensions-utils";
 
-function insertAutoClosingTagCommand(view: EditorView): boolean {
-  const { state, dispatch } = view;
-  const { cursorPos, fullLineText, lineTextUpToCursor, lineTextAfterCursor } =
-    getEditorStateInfo(state);
+function insertAutoClosingTagCommand(
+  editorInstance: editor.IStandaloneCodeEditor
+): boolean {
+  const { fullLineText, lineTextUpToCursor, lineTextAfterCursor } =
+    getEditorStateInfo(editorInstance);
 
   const tagName = parseTagFromLineText(lineTextUpToCursor);
 
@@ -30,15 +31,40 @@ function insertAutoClosingTagCommand(view: EditorView): boolean {
     return false;
   }
 
-  // +1 to move in between the inserted closing bracket and the closing tag
-  const newCursorPos = EditorSelection.cursor(cursorPos + 1);
+  const position = editorInstance.getPosition();
+  if (!position) {
+    return false;
+  }
 
-  dispatch(
-    state.update({
-      changes: { from: cursorPos, insert: `></${tagName}>` },
-      selection: newCursorPos,
-    })
-  );
+  const model = editorInstance.getModel();
+  if (!model) {
+    return false;
+  }
+
+  // Insert the closing tag after the '>' that was just typed
+  // The '>' is already inserted, so we just need to add </tagName>
+  const insertText = `</${tagName}>`;
+  const edit = {
+    range: {
+      startLineNumber: position.lineNumber,
+      startColumn: position.column,
+      endLineNumber: position.lineNumber,
+      endColumn: position.column,
+    },
+    text: insertText,
+  };
+
+  editorInstance.executeEdits("auto-close-tag", [edit]);
+
+  // Move cursor to position between the opening and closing tags (inside the JSX element)
+  // After inserting </tagName>, the cursor is at the end of the inserted text
+  // We need to move it back to right after the '>' of the opening tag
+  // The original position.column is right after the '>', so that's where we want the cursor
+  const newPosition = {
+    lineNumber: position.lineNumber,
+    column: position.column, // Position right after the '>' of the opening tag (between the tags)
+  };
+  editorInstance.setPosition(newPosition);
 
   return true;
 }

@@ -4,24 +4,23 @@ import { useAddonState } from "storybook/manager-api";
 import { DEFAULT_ADDON_STATE, PANEL_ID } from "@/consts";
 
 const useCopyToClipboard = (code: Code) => {
-  const [state] = useAddonState<PlaygroundState>(PANEL_ID, DEFAULT_ADDON_STATE);
   const [isCopied, setCopied] = useState(false);
 
-  const currentTabCode = code[state.selectedTab];
+  const jsxCode = code.jsx || "";
 
   const shouldAllowCopy = useMemo(
-    () => currentTabCode?.length > 0,
-    [currentTabCode?.length]
+    () => jsxCode.length > 0,
+    [jsxCode.length]
   );
 
   const onCopy = useCallback(() => {
     if (!shouldAllowCopy) {
       return;
     }
-    navigator.clipboard.writeText(currentTabCode);
+    navigator.clipboard.writeText(jsxCode);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  }, [currentTabCode, shouldAllowCopy]);
+  }, [jsxCode, shouldAllowCopy]);
 
   return { onCopy, isCopied, shouldAllowCopy };
 };

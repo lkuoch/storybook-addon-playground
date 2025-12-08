@@ -1,7 +1,5 @@
 import React from "react";
-import { Extension } from "@uiw/react-codemirror";
-import { EditorStateConfig } from "@codemirror/state";
-import { EDITOR_STATE_FIELDS } from "@/consts";
+import type { editor } from "monaco-editor";
 
 export interface PlaygroundParameters {
   storyId: string;
@@ -34,19 +32,18 @@ export interface PlaygroundArgs {
 export interface PlaygroundState {
   hasInitialCodeLoaded?: boolean;
   code?: Code;
-  selectedTab?: Tab;
-  editorState?: Record<Tab, EditorStateJson>;
+  editorState?: {
+    jsx?: EditorStateJson;
+  };
 }
 
-type EditorStateFields = typeof EDITOR_STATE_FIELDS;
-
 export interface EditorInitialState {
-  fields: EditorStateFields;
   json: EditorStateJson;
 }
 
-type EditorStateJson = Partial<EditorStateConfig> & {
-  [K in keyof EditorStateFields]: unknown;
+export type EditorStateJson = {
+  viewState?: editor.ICodeEditorViewState;
+  modelValue?: string;
 };
 
 export type Code = Record<SupportedLanguages, string>;
@@ -55,4 +52,4 @@ export type Tab = SupportedLanguages;
 
 type SupportedLanguages = "jsx" | "css";
 
-export type EditorTheme = "light" | "dark" | Extension;
+export type EditorTheme = "light" | "dark" | string;

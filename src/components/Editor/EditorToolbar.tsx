@@ -11,17 +11,16 @@ import {
   ADDON_ID_FOR_PARAMETERS,
   DEFAULT_ADDON_PARAMETERS,
   DEFAULT_ADDON_STATE,
-  EDITOR_STATE_FIELDS,
   PANEL_ID,
 } from "@/consts";
-import { PlaygroundParameters, PlaygroundState, Tab } from "@/types";
+import { PlaygroundParameters, PlaygroundState } from "@/types";
 import styles from "./EditorToolbar.module.css";
-import EditorTabs from "@/components/Editor/EditorTabs";
-import { ReactCodeMirrorRef } from "@uiw/react-codemirror";
+import type { editor } from "monaco-editor";
+import { MonacoEditorRef } from "./Editor";
 import { Copy, Edit, Reset, Share } from "@/icons";
 
 interface EditorToolbarProps {
-  editorRef: React.RefObject<ReactCodeMirrorRef>;
+  editorRef: React.RefObject<MonacoEditorRef>;
 }
 
 const EditorToolbar: React.FC<EditorToolbarProps> = ({ editorRef }) => {
@@ -34,7 +33,7 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({ editorRef }) => {
     ADDON_ID_FOR_PARAMETERS,
     DEFAULT_ADDON_PARAMETERS
   );
-  const { code, selectedTab } = state;
+  const { code } = state;
 
   const { onCopy, isCopied, shouldAllowCopy } = useCopyToClipboard(code);
   const { onShare, isShareCopied, shouldAllowShare } = useShare(code);
@@ -42,34 +41,11 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({ editorRef }) => {
   const { onFormatCode, onReset } = useToolbarActions(
     code,
     updateCode,
-    resetCode,
-    selectedTab
-  );
-
-  const onTabChange = useCallback(
-    (newTab: Tab) => {
-      setState((prev) => {
-        const updates = {
-          ...prev,
-          selectedTab: newTab,
-        };
-        const editorStateJson =
-          editorRef.current?.view?.state?.toJSON?.(EDITOR_STATE_FIELDS);
-        if (editorStateJson) {
-          updates.editorState = {
-            ...prev.editorState,
-            [prev.selectedTab]: editorStateJson,
-          };
-        }
-        return updates;
-      });
-    },
-    [editorRef, setState]
+    resetCode
   );
 
   return (
     <div className={styles.toolbar}>
-      <EditorTabs selectedTab={selectedTab} onTabChange={onTabChange} />
       <section>
         <EditorToolbarButton
           tooltip={shouldAllowCopy ? "" : "Editor is empty"}
