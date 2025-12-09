@@ -4,7 +4,9 @@ import {
   parseTagFromLineText,
 } from "../utils/extensions-utils";
 
-function insertSelfClosingTagCommand(editorInstance: editor.IStandaloneCodeEditor): boolean {
+function insertSelfClosingTagCommand(
+  editorInstance: editor.IStandaloneCodeEditor
+): boolean {
   const { lineTextUpToCursor, lineTextAfterCursor } =
     getEditorStateInfo(editorInstance);
 

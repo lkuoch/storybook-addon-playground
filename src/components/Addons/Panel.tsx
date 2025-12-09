@@ -19,20 +19,23 @@ import {
 } from "@/consts";
 import { PlaygroundParameters, PlaygroundState } from "@/types";
 import styles from "./Panel.module.css";
-import {
-  registerPlaygroundAutocompletion,
-  setCurrentEditorInstance,
-} from "@/codemirror/extensions";
+// Custom autocomplete removed - using Monaco's built-in TypeScript service
 import { registerPlaygroundKeybindings } from "@/codemirror/keymaps";
+import { generateTypeDefinitions } from "../../monaco/generate-type-definitions";
+import { REACT_TYPES } from "virtual:react-types";
+import { FILTERED_LIBS } from "virtual:filtered-libs";
 import loader from "@monaco-editor/loader";
 import type { editor } from "monaco-editor";
 
 const Panel: React.FC<Addon_RenderOptions> = ({ active }) => {
   const editorRef = useRef<MonacoEditorRef>(null);
-  const autocompleteDisposableRef = useRef<{ dispose: () => void } | null>(
+  const keybindingsDisposableRef = useRef<(() => void) | null>(null);
+  const typeDefinitionsDisposableRef = useRef<{ dispose: () => void } | null>(
     null
   );
-  const keybindingsDisposableRef = useRef<(() => void) | null>(null);
+  const reactTypesDisposableRef = useRef<{ dispose: () => void } | null>(null);
+  const libDisposableRef = useRef<{ dispose: () => void } | null>(null);
+  const completionDisposableRef = useRef<{ dispose: () => void } | null>(null);
 
   useInitialCode();
   useBroadcastEditorChanges();
@@ -40,10 +43,11 @@ const Panel: React.FC<Addon_RenderOptions> = ({ active }) => {
   usePersistence();
   const theme = useEditorTheme();
   const { updateCode } = usePlaygroundArgs();
-  const { autocompletions } = useParameter<PlaygroundParameters>(
-    ADDON_ID_FOR_PARAMETERS,
-    DEFAULT_ADDON_PARAMETERS
-  );
+  const { autocompletions, reactDocgenOutput } =
+    useParameter<PlaygroundParameters>(
+      ADDON_ID_FOR_PARAMETERS,
+      DEFAULT_ADDON_PARAMETERS
+    );
   const [state] = useAddonState<PlaygroundState>(PANEL_ID, DEFAULT_ADDON_STATE);
 
   const { code, hasInitialCodeLoaded, editorState } = state;
@@ -55,15 +59,12 @@ const Panel: React.FC<Addon_RenderOptions> = ({ active }) => {
     [editorState]
   );
 
-  // Register autocomplete and keybindings when editor is mounted
+  // Register type definitions and keybindings when editor is mounted
   const handleEditorMount = async (
     editorInstance: editor.IStandaloneCodeEditor
   ) => {
-    // Store editor instance globally for autocomplete access
-    setCurrentEditorInstance(editorInstance);
-
-    // Prevent Storybook from intercepting number keys (0-9) used for story navigation
-    // Only block when editor is focused and only for number keys without modifiers
+    // Prevent Storybook from intercepting keyboard events when editor has focus
+    // This prevents Storybook shortcuts from interfering with typing in the editor
     const editorContainer = editorInstance.getContainerDomNode();
     const handleKeyDown = (event: KeyboardEvent) => {
       // Check if editor is focused
@@ -71,19 +72,31 @@ const Panel: React.FC<Addon_RenderOptions> = ({ active }) => {
         return; // Don't block if editor isn't focused
       }
 
-      // Only block number keys (0-9) without modifier keys
-      // Storybook uses number keys for story navigation, but we want them in the editor
-      const key = event.key;
-      const isNumberKey = key >= "0" && key <= "9";
+      // Stop propagation for all keys when editor has focus to prevent Storybook shortcuts
+      // This ensures all typing goes to the editor, not to Storybook's shortcut handlers
+      // Exception: Don't block modifier-only keys (like Cmd/Ctrl alone) as they might be needed
       const hasModifier =
         event.metaKey || event.ctrlKey || event.altKey || event.shiftKey;
+      const isModifierOnly =
+        hasModifier &&
+        !event.key.match(/^[a-zA-Z0-9]$/) &&
+        ![
+          "Enter",
+          "Space",
+          "Tab",
+          "Backspace",
+          "Delete",
+          "ArrowUp",
+          "ArrowDown",
+          "ArrowLeft",
+          "ArrowRight",
+        ].includes(event.key);
 
-      // Only stop propagation for number keys without modifiers
-      // This allows Cmd+1, Ctrl+1, etc. to work normally (for editor shortcuts)
-      if (isNumberKey && !hasModifier) {
+      // Stop propagation for all keys except modifier-only combinations
+      // This prevents Storybook from intercepting typing, but allows editor shortcuts
+      if (!isModifierOnly) {
         event.stopPropagation();
       }
-      // All other keys (arrows, backspace, Cmd/Ctrl combos, etc.) work normally
     };
 
     // Use bubbling phase (not capture) so Monaco handles events first
@@ -95,30 +108,87 @@ const Panel: React.FC<Addon_RenderOptions> = ({ active }) => {
     };
 
     // Store cleanup in a way we can access it later
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (editorInstance as any).__keydownCleanup = cleanupKeyDown;
 
-    // Load Monaco and register autocomplete
+    // Load Monaco
     const monaco = await loader.init();
 
-    // Dispose previous autocomplete if exists
-    if (autocompleteDisposableRef.current) {
-      autocompleteDisposableRef.current.dispose();
+    // Configure TypeScript compiler options FIRST (before registering types)
+    // This ensures the compiler is ready when types are added
+    monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
+      target: monaco.languages.typescript.ScriptTarget.Latest,
+      allowNonTsExtensions: true,
+      moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
+      module: monaco.languages.typescript.ModuleKind.CommonJS,
+      noEmit: true,
+      esModuleInterop: true,
+      jsx: monaco.languages.typescript.JsxEmit.React,
+      reactNamespace: "React",
+      allowJs: true,
+      noLib: true, // Use custom filtered lib
+      // Strict type checking options
+      strict: true,
+      noImplicitAny: false,
+    });
+
+    // Register Filtered Libs (standard JS/DOM but without noisy globals)
+    if (FILTERED_LIBS) {
+      if (libDisposableRef.current) {
+        libDisposableRef.current.dispose();
+      }
+      libDisposableRef.current =
+        monaco.languages.typescript.typescriptDefaults.addExtraLib(
+          FILTERED_LIBS,
+          "file:///lib.d.ts"
+        );
     }
 
-    // Register autocomplete for JSX
-    if (autocompletions) {
-      autocompleteDisposableRef.current = registerPlaygroundAutocompletion(
-        monaco,
-        autocompletions
-      );
+    // Register React types
+    if (REACT_TYPES) {
+      if (reactTypesDisposableRef.current) {
+        reactTypesDisposableRef.current.dispose();
+      }
+      reactTypesDisposableRef.current =
+        monaco.languages.typescript.typescriptDefaults.addExtraLib(
+          REACT_TYPES,
+          "file:///react.d.ts"
+        );
     }
 
-    // Register keybindings
+    // Register type definitions from react-docgen
+    if (reactDocgenOutput) {
+      const typeDefinitions = generateTypeDefinitions(reactDocgenOutput);
+      if (typeDefinitions) {
+        // Dispose previous type definitions if they exist
+        if (typeDefinitionsDisposableRef.current) {
+          typeDefinitionsDisposableRef.current.dispose();
+        }
+
+        // Register type definitions with Monaco's TypeScript language service
+        // Use a proper file URI that Monaco can resolve
+        const typeDefUri = "file:///components.d.ts";
+
+        // Add the type definitions to Monaco's TypeScript language service
+        const disposable =
+          monaco.languages.typescript.typescriptDefaults.addExtraLib(
+            typeDefinitions,
+            typeDefUri
+          );
+        typeDefinitionsDisposableRef.current = disposable;
+
+        // No longer manually injecting reference directives into the model
+      }
+    }
+
+    // Register keybindings (for auto-closing tags, etc.)
     if (keybindingsDisposableRef.current) {
       keybindingsDisposableRef.current();
     }
-    keybindingsDisposableRef.current =
-      registerPlaygroundKeybindings(editorInstance);
+    keybindingsDisposableRef.current = registerPlaygroundKeybindings(
+      editorInstance,
+      autocompletions
+    );
 
     // Restore view state if available
     if (editorInitialState?.json?.viewState) {
@@ -126,48 +196,100 @@ const Panel: React.FC<Addon_RenderOptions> = ({ active }) => {
     }
   };
 
-  // Update autocomplete when autocompletions change
+  // Update type definitions when they change
   useEffect(() => {
-    const updateAutocomplete = async () => {
-      if (!editorRef.current || !autocompletions) {
+    const updateTypeDefinitions = async () => {
+      if (!editorRef.current || !reactDocgenOutput) {
         return;
       }
 
       const monaco = await loader.init();
+      const typeDefinitions = generateTypeDefinitions(reactDocgenOutput);
+      if (typeDefinitions) {
+        if (typeDefinitionsDisposableRef.current) {
+          typeDefinitionsDisposableRef.current.dispose();
+        }
 
-      if (autocompleteDisposableRef.current) {
-        autocompleteDisposableRef.current.dispose();
+        const disposable =
+          monaco.languages.typescript.typescriptDefaults.addExtraLib(
+            typeDefinitions,
+            "file:///components.d.ts"
+          );
+        typeDefinitionsDisposableRef.current = disposable;
+
+        // Register completion item provider to force components to the top
+        if (completionDisposableRef.current) {
+          completionDisposableRef.current.dispose();
+        }
+
+        const componentNames = Object.values(reactDocgenOutput)
+          .flat()
+          .map((c) => c.displayName)
+          .filter((name): name is string => !!name);
+
+        completionDisposableRef.current =
+          monaco.languages.registerCompletionItemProvider("typescript", {
+            provideCompletionItems: (model, position) => {
+              const word = model.getWordUntilPosition(position);
+              const range = {
+                startLineNumber: position.lineNumber,
+                endLineNumber: position.lineNumber,
+                startColumn: word.startColumn,
+                endColumn: word.endColumn,
+              };
+
+              const suggestions = componentNames.map((name) => ({
+                label: name,
+                kind: monaco.languages.CompletionItemKind.Class,
+                insertText: name,
+                sortText: "!" + name, // "!" sorts before alphanumerics
+                detail: "Component",
+                range: range,
+              }));
+              return { suggestions };
+            },
+          });
+
+        // No longer manually injecting reference directives into the model
       }
-
-      autocompleteDisposableRef.current = registerPlaygroundAutocompletion(
-        monaco,
-        autocompletions
-      );
     };
 
-    updateAutocomplete();
+    updateTypeDefinitions();
 
     return () => {
-      if (autocompleteDisposableRef.current) {
-        autocompleteDisposableRef.current.dispose();
-        autocompleteDisposableRef.current = null;
+      if (typeDefinitionsDisposableRef.current) {
+        typeDefinitionsDisposableRef.current.dispose();
+        typeDefinitionsDisposableRef.current = null;
       }
     };
-  }, [autocompletions]);
+  }, [reactDocgenOutput]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      setCurrentEditorInstance(null);
-      if (autocompleteDisposableRef.current) {
-        autocompleteDisposableRef.current.dispose();
+      if (typeDefinitionsDisposableRef.current) {
+        typeDefinitionsDisposableRef.current.dispose();
       }
       if (keybindingsDisposableRef.current) {
         keybindingsDisposableRef.current();
       }
+      if (reactTypesDisposableRef.current) {
+        reactTypesDisposableRef.current.dispose();
+      }
+      if (libDisposableRef.current) {
+        libDisposableRef.current.dispose();
+      }
+      if (completionDisposableRef.current) {
+        completionDisposableRef.current.dispose();
+      }
       // Cleanup keydown event listener
-      if (editorRef.current && (editorRef.current as any).__keydownCleanup) {
-        (editorRef.current as any).__keydownCleanup();
+      const currentEditor = editorRef.current;
+      if (currentEditor) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const cleanup = (currentEditor as any).__keydownCleanup;
+        if (cleanup) {
+          cleanup();
+        }
       }
     };
   }, []);
@@ -182,6 +304,19 @@ const Panel: React.FC<Addon_RenderOptions> = ({ active }) => {
       lineNumbers: "on",
       renderLineHighlight: "all",
       readOnly: false, // Explicitly ensure editor is not read-only
+      // Enable suggestions and quick suggestions
+      // Monaco's TypeScript service will provide autocomplete automatically once types are registered
+      suggestOnTriggerCharacters: true,
+      fixedOverflowWidgets: true, // Helps with widget positioning
+      quickSuggestions: {
+        other: true,
+        comments: false,
+        strings: true, // Enable suggestions in strings (for string literal unions)
+      },
+      acceptSuggestionOnCommitCharacter: true,
+      acceptSuggestionOnEnter: "on",
+      tabCompletion: "on",
+      wordBasedSuggestions: "allDocuments",
       scrollbar: {
         vertical: "auto",
         horizontal: "auto",

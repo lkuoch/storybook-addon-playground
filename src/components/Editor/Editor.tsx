@@ -49,7 +49,7 @@ const Editor: EditorComponentType = forwardRef(
       monaco: typeof import("monaco-editor")
     ) => {
       editorRef.current = editor;
-      
+
       // Restore view state if provided
       if (initialState?.json?.viewState) {
         editor.restoreViewState(initialState.json.viewState);
@@ -61,11 +61,14 @@ const Editor: EditorComponentType = forwardRef(
     };
 
     const editorOptions: editor.IStandaloneEditorConstructionOptions = {
-      fontSize: 13,
+      fontSize: 16,
       minimap: { enabled: false },
       scrollBeyondLastLine: false,
       wordWrap: "on",
       readOnly: false, // Explicitly ensure editor is not read-only
+      padding: {
+        top: 16,
+      },
       ...options,
     };
 

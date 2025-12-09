@@ -1,10 +1,12 @@
 import React from "react";
 import type { editor } from "monaco-editor";
+import type { Documentation } from "react-docgen/dist/Documentation";
 
 export interface PlaygroundParameters {
   storyId: string;
   components: Components;
   autocompletions?: AutocompletionsMetadata;
+  reactDocgenOutput?: Record<string, Documentation[]>;
   editorTheme?: EditorTheme;
   introCode?: Code;
   share?: boolean;

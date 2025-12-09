@@ -1,8 +1,11 @@
 {
-  "name": "storybook-addon-playground",
-  "version": "3.0.0",
+  "name": "@spaceship-fspl/sb-addon-playground-monaco",
+  "version": "1.1.7",
   "description": "A playground to enable consumers learn how to use the component library or to reproduce bugs",
   "type": "module",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "keywords": [
     "playground",
     "sandbox",
@@ -12,12 +15,16 @@
     "reproduce",
     "bugs",
     "component",
-    "storybook-addons"
+    "storybook-addons",
+    "monaco-editor",
+    "jsx",
+    "react"
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/mondaycom/storybook-addon-playground"
+    "url": "https://github.com/lkuoch/storybook-addon-playground"
   },
+  "homepage": "https://github.com/lkuoch/storybook-addon-playground#readme",
   "storybook": {
     "displayName": "Playground",
     "supportedFrameworks": [
@@ -25,7 +32,7 @@
     ],
     "icon": "https://user-images.githubusercontent.com/321738/63501763-88dbf600-c4cc-11e9-96cd-94adadc2fd72.png"
   },
-  "author": "Vibe",
+  "author": "lkuoch",
   "license": "MIT",
   "main": "./dist/index.js",
   "exports": {
@@ -53,7 +60,8 @@
     "lint:fix": "yarn lint -- --fix",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
-    "start": "yarn build && yarn storybook"
+    "start": "yarn build && yarn storybook",
+    "prepublishOnly": "yarn build"
   },
   "dependencies": {
     "@monaco-editor/react": "4.7.0",

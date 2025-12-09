@@ -1,8 +1,6 @@
 import lzString from "lz-string";
-const {
-  compressToEncodedURIComponent,
-  decompressFromEncodedURIComponent,
-} = lzString;
+const { compressToEncodedURIComponent, decompressFromEncodedURIComponent } =
+  lzString;
 import { Code } from "@/types";
 
 export function compressAndEncode(code: Code): string {

@@ -1,7 +1,7 @@
 import type { StorybookConfig } from "@storybook/react-vite";
 const config: StorybookConfig = {
   stories: ["./**/*.stories.@(js|jsx|ts|tsx)"],
-  addons: ["storybook-addon-playground", "@storybook/addon-docs"],
+  addons: ["@spaceship-fspl/sb-addon-playground-monaco", "@storybook/addon-docs"],
 
   framework: {
     name: "@storybook/react-vite",

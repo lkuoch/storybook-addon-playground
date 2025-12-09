@@ -11,6 +11,7 @@ const preview: Preview = {
       storyId: "playground--playground",
       components: { ...VibeComponents, ...VibeNext, VibeIcons },
       autocompletions: generateAutocompletion(reactDocgenOutput),
+      reactDocgenOutput: reactDocgenOutput, // Also pass the raw output for type definitions
       editorTheme: "light",
       introCode: {
         jsx: `<Heading>Online Playground</Heading>`,

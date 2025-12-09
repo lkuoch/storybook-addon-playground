@@ -16,7 +16,7 @@ export function getEditorStateInfo(
 ): EditorStateInfo {
   const model = editorInstance.getModel();
   const position = editorInstance.getPosition();
-  
+
   if (!model || !position) {
     return {
       cursorPos: 0,
@@ -29,10 +29,10 @@ export function getEditorStateInfo(
   const lineNumber = position.lineNumber;
   const column = position.column;
   const line = model.getLineContent(lineNumber);
-  
+
   // Convert line/column to offset
   const cursorPos = model.getOffsetAt(position);
-  
+
   const lineTextUpToCursor = line.substring(0, column - 1);
   const lineTextAfterCursor = line.substring(column - 1);
 

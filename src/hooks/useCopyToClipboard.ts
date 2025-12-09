@@ -8,10 +8,7 @@ const useCopyToClipboard = (code: Code) => {
 
   const jsxCode = code.jsx || "";
 
-  const shouldAllowCopy = useMemo(
-    () => jsxCode.length > 0,
-    [jsxCode.length]
-  );
+  const shouldAllowCopy = useMemo(() => jsxCode.length > 0, [jsxCode.length]);
 
   const onCopy = useCallback(() => {
     if (!shouldAllowCopy) {
